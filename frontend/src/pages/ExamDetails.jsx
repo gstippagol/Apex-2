@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import Navbar from '../components/Navbar';
 import LoadingScreen from '../components/LoadingScreen';
 import { 
@@ -131,10 +132,6 @@ const ExamDetails = () => {
         }
     });
 
-    useEffect(() => {
-        fetchExam();
-    }, [id]);
-
     const fetchExam = async () => {
         try {
             const res = await axios.get(`${API_BASE}/api/exams/${id}`);
@@ -154,6 +151,21 @@ const ExamDetails = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchExam();
+    }, [id]);
+
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data-updated', (data) => {
+            if (data.type === 'exam' || data.type === 'question') {
+                console.log('Exam or Question data updated, refetching details...');
+                fetchExam();
+            }
+        });
+        return () => socket.disconnect();
+    }, [id]);
 
     const handleUpdateExam = async (e) => {
         e.preventDefault();

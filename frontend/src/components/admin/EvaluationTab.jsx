@@ -239,7 +239,7 @@ const EvaluationTab = () => {
             theme: 'grid',
             headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontSize: 9, fontStyle: 'bold', lineWidth: 0.1, lineColor: [0, 0, 0] },
             bodyStyles: { fontSize: 8, textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0] },
-            margin: { left: 15, right: 15 }
+            margin: { top: 30, bottom: 40, left: 15, right: 15 }
         });
 
         // Add Summary Page
@@ -442,13 +442,22 @@ const EvaluationTab = () => {
                                                     </button>
                                                 </td>
                                                 <td className="px-8 py-6">
-                                                    <div className="flex flex-col">
-                                                        <span className={`text-xs font-black ${((sub.violations?.tabSwitches || 0) + (sub.violations?.fullscreenExits || 0)) > 0 ? 'text-rose-500 font-extrabold' : 'text-slate-500'}`}>
-                                                            {((sub.violations?.tabSwitches || 0) + (sub.violations?.fullscreenExits || 0))} / 3
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
-                                                            {sub.violations?.fullscreenExits || 0} FS | {sub.violations?.tabSwitches || 0} Tab
-                                                        </span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-col">
+                                                            <span className={`text-xs font-black ${((sub.violations?.tabSwitches || 0) + (sub.violations?.fullscreenExits || 0)) > 0 ? 'text-rose-500 font-extrabold' : 'text-slate-500'}`}>
+                                                                {((sub.violations?.tabSwitches || 0) + (sub.violations?.fullscreenExits || 0))} / 3 BROWSER
+                                                            </span>
+                                                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
+                                                                {sub.violations?.fullscreenExits || 0} FS | {sub.violations?.tabSwitches || 0} Tab
+                                                            </span>
+                                                        </div>
+                                                        {sub.examId?.proctoring?.camera && (
+                                                            <div className="flex flex-col mt-0.5">
+                                                                <span className={`text-xs font-black ${(sub.violations?.aiViolations || 0) > 0 ? 'text-rose-500 font-extrabold' : 'text-slate-500'}`}>
+                                                                    {(sub.violations?.aiViolations || 0)} / 3 CAMERA
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
@@ -554,7 +563,7 @@ const EvaluationTab = () => {
                                         <p className="text-lg sm:text-xl font-black text-slate-900">{Math.floor((viewingResult.timeTaken || 0) / 60)}m {(viewingResult.timeTaken || 0) % 60}s</p>
                                     </div>
                                     <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center items-center sm:items-start text-center sm:text-left">
-                                        <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Violations</p>
+                                        <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Browser Violations</p>
                                         <p className={`text-lg sm:text-xl font-black ${((viewingResult.violations?.tabSwitches || 0) + (viewingResult.violations?.fullscreenExits || 0)) > 0 ? 'text-rose-500' : 'text-slate-900'}`}>
                                             {((viewingResult.violations?.tabSwitches || 0) + (viewingResult.violations?.fullscreenExits || 0))} / 3
                                         </p>
@@ -562,6 +571,17 @@ const EvaluationTab = () => {
                                             {viewingResult.violations?.fullscreenExits || 0} FS Exit | {viewingResult.violations?.tabSwitches || 0} Tab
                                         </p>
                                     </div>
+                                    {viewingResult.examId?.proctoring?.camera && (
+                                        <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col justify-center items-center sm:items-start text-center sm:text-left">
+                                            <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Camera Violations</p>
+                                            <p className={`text-lg sm:text-xl font-black ${(viewingResult.violations?.aiViolations || 0) > 0 ? 'text-rose-500' : 'text-slate-900'}`}>
+                                                {(viewingResult.violations?.aiViolations || 0)} / 3
+                                            </p>
+                                            <p className="text-[7px] sm:text-[8px] text-slate-400 font-bold tracking-widest uppercase mt-1">
+                                                Camera Off / No Face
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-6">
@@ -660,7 +680,6 @@ const EvaluationTab = () => {
                 )}
             </AnimatePresence>
 
-            {/* Premium Custom Confirmation Overlay */}
             <ConfirmModal
                 isOpen={confirmModal.isOpen}
                 title={confirmModal.title}

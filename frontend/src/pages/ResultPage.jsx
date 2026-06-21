@@ -6,7 +6,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import {
     ArrowLeft, Terminal, Award, Clock,
     Activity, CheckSquare, Monitor, Sparkles,
-    Check, X as XIcon, ShieldAlert, TabletSmartphone, Maximize2
+    Check, X as XIcon, ShieldAlert, TabletSmartphone, Maximize2, Video
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
 
@@ -140,7 +140,7 @@ const ResultPage = () => {
                                     <div className="h-0.5 flex-1 bg-slate-200/50 rounded-full" />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                <div className={`grid grid-cols-1 sm:grid-cols-2 ${result.examId?.proctoring?.camera ? 'lg:grid-cols-3' : ''} gap-3 sm:gap-4`}>
                                     {/* Tab Switches */}
                                     {(() => {
                                         const val   = result.violations.tabSwitches  ?? 0;
@@ -202,6 +202,49 @@ const ResultPage = () => {
                                                     <div className="flex items-center gap-2">
                                                         <Maximize2 size={13} className={safe ? 'text-emerald-500' : warn ? 'text-amber-500' : 'text-rose-500'} />
                                                         <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Fullscreen Exit</p>
+                                                    </div>
+                                                    <span className={`text-lg font-black tracking-tight ${
+                                                        safe ? 'text-emerald-600' : warn ? 'text-amber-600' : 'text-rose-600'
+                                                    }`}>
+                                                        {val}<span className="text-slate-300 font-bold">/{max}</span>
+                                                    </span>
+                                                </div>
+                                                {/* Progress bar */}
+                                                <div className="w-full h-2 bg-white/70 rounded-full overflow-hidden border border-slate-100 shadow-inner">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-700 ${
+                                                            safe ? 'bg-emerald-400' : warn ? 'bg-amber-400' : 'bg-rose-500'
+                                                        }`}
+                                                        style={{ width: `${pctV}%` }}
+                                                    />
+                                                </div>
+                                                <p className={`text-[8px] font-black uppercase tracking-widest ${
+                                                    safe ? 'text-emerald-500' : warn ? 'text-amber-500' : 'text-rose-500'
+                                                }`}>
+                                                    {safe ? 'No violations' : warn ? `Warning — ${max - val} remaining` : 'Limit reached'}
+                                                </p>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Camera Violations */}
+                                    {result.examId?.proctoring?.camera && (() => {
+                                        const val   = result.violations.aiViolations ?? 0;
+                                        const max   = 3;
+                                        const pctV  = Math.min((val / max) * 100, 100);
+                                        const safe  = val === 0;
+                                        const warn  = val > 0 && val < max;
+                                        const danger = val >= max;
+                                        return (
+                                            <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col gap-3 ${
+                                                safe   ? 'bg-emerald-50/40 border-emerald-100'
+                                                : warn  ? 'bg-amber-50/50  border-amber-100'
+                                                : 'bg-rose-50/50    border-rose-100'
+                                            }`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Video size={13} className={safe ? 'text-emerald-500' : warn ? 'text-amber-500' : 'text-rose-500'} />
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-500">Camera Off/Missing</p>
                                                     </div>
                                                     <span className={`text-lg font-black tracking-tight ${
                                                         safe ? 'text-emerald-600' : warn ? 'text-amber-600' : 'text-rose-600'

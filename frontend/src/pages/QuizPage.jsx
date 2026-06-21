@@ -126,7 +126,10 @@ const QuizPage = () => {
 
             if (res.data.success) {
                 setQuizResult(res.data.data);
-                toast.success('Quiz submitted successfully!');
+                toast.success('student is submiting the exam');
+                setTimeout(() => {
+                    navigate('/student');
+                }, 5000);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || 'Submission failed';
@@ -927,6 +930,7 @@ const QuizPage = () => {
                             allowMicrophone={quiz?.proctoring?.microphone}
                             onStatusChange={(status) => setMediaStatus(status)}
                             triggerSnapshotOnFocusLoss={quiz?.isRestricted}
+                            violations={{ tabSwitches, fullscreenExits }}
                         />
                     </div>
                 )}

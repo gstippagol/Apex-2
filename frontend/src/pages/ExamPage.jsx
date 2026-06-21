@@ -37,6 +37,8 @@ const ExamPage = () => {
     const [fullscreenExits, setFullscreenExits] = useState(0);
     const [showSubmitModal, setShowSubmitModal] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [hasStartedExam, setHasStartedExam] = useState(false);
+    const [frameStatus, setFrameStatus] = useState('loading');
     const [timeLeft, setTimeLeft] = useState(0);
     const [mediaStatus, setMediaStatus] = useState('pending'); // pending, granted, denied
     const [resultId, setResultId] = useState(null);
@@ -99,6 +101,9 @@ const ExamPage = () => {
                     document.exitFullscreen().catch(() => {});
                 }
                 setIsSubmitted(true);
+                setTimeout(() => {
+                    navigate('/student');
+                }, 5000);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || 'Submission failed';
@@ -356,7 +361,13 @@ const ExamPage = () => {
 
     // Active Proctoring Navigation & Unload Lock Listeners
     useEffect(() => {
-        if (!hasAcceptedProtocols || isSubmitted) return;
+        if (isFullscreen && !hasStartedExam) {
+            setHasStartedExam(true);
+        }
+    }, [isFullscreen, hasStartedExam]);
+
+    useEffect(() => {
+        if (!hasStartedExam || isSubmitted) return;
 
         window.history.pushState(null, null, window.location.pathname);
 
@@ -420,7 +431,7 @@ const ExamPage = () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
             window.removeEventListener('unload', handleUnload);
         };
-    }, [id, API_BASE, hasAcceptedProtocols, isSubmitted]);
+    }, [id, API_BASE, hasStartedExam, isSubmitted]);
 
     // Fullscreen detection
     useEffect(() => {
@@ -430,7 +441,7 @@ const ExamPage = () => {
             if (!document.fullscreenElement) {
                 setIsFullscreen(false);
                 setFullscreenExits(e => e + 1);
-                const currentViolations = tabSwitches + fullscreenExits + aiViolations + 1;
+                const currentViolations = tabSwitches + fullscreenExits + 1;
                 const remaining = VIOLATION_LIMIT - currentViolations;
 
                 if (remaining > 0) {
@@ -460,15 +471,24 @@ const ExamPage = () => {
         syncViolations();
     }, [tabSwitches, fullscreenExits, aiViolations, resultId, API_BASE, isSubmitted]);
 
-    // Violation limit
+    // Tab/Fullscreen Violation limit
     useEffect(() => {
         if (isSubmitted) return;
-        const totalViolations = tabSwitches + fullscreenExits + aiViolations;
+        const totalViolations = tabSwitches + fullscreenExits;
         if (totalViolations >= VIOLATION_LIMIT) {
             toast.error('Violation limit reached! Auto-submitting...', { duration: 5000 });
             submitExam();
         }
-    }, [tabSwitches, fullscreenExits, aiViolations, submitExam, isSubmitted]);
+    }, [tabSwitches, fullscreenExits, submitExam, isSubmitted]);
+
+    // AI/Camera Violation limit
+    useEffect(() => {
+        if (isSubmitted) return;
+        if (aiViolations >= VIOLATION_LIMIT) {
+            toast.error('Camera violation limit reached! Auto-submitting...', { duration: 5000 });
+            submitExam();
+        }
+    }, [aiViolations, submitExam, isSubmitted]);
 
     // Right-click & Copy-Paste Prevention & Anti-Screenshot
     useEffect(() => {
@@ -709,7 +729,7 @@ const ExamPage = () => {
         </aside>
     );
 
-    const totalViolations = tabSwitches + fullscreenExits + aiViolations;
+    const totalViolations = tabSwitches + fullscreenExits;
 
     return (
         <div style={{
@@ -768,6 +788,17 @@ const ExamPage = () => {
                         <span style={{ color: totalViolations > 0 ? '#f87171' : '#34d399', fontWeight: '900' }}>
                             {totalViolations}/{VIOLATION_LIMIT}
                         </span>
+                        
+                        {exam?.proctoring?.camera && (
+                            <>
+                                <div style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+                                <Video size={14} style={{ color: aiViolations > 0 ? '#f59e0b' : '#94a3b8' }} />
+                                Camera:&nbsp;
+                                <span style={{ color: aiViolations > 0 ? '#f87171' : '#34d399', fontWeight: '900' }}>
+                                    {aiViolations}/{VIOLATION_LIMIT}
+                                </span>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -971,7 +1002,7 @@ const ExamPage = () => {
             )}
 
             {/* ── FULLSCREEN GATE ── */}
-            {hasAcceptedProtocols && !isFullscreen && (
+            {hasAcceptedProtocols && mediaStatus === 'granted' && !isFullscreen && (
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(15,15,26,0.96)',
                     zIndex: 100, display: 'flex', flexDirection: 'column',
@@ -982,16 +1013,30 @@ const ExamPage = () => {
                         <Maximize2 size={36} style={{ color: '#60a5fa' }} />
                     </div>
                     <h2 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', marginBottom: '12px' }}>Fullscreen Required</h2>
-                    <p style={{ color: '#64748b', maxWidth: '400px', marginBottom: '32px', lineHeight: 1.6 }}>
+                    <p style={{ color: '#64748b', maxWidth: '400px', marginBottom: '24px', lineHeight: 1.6 }}>
                         This exam requires fullscreen mode to ensure academic integrity.
                     </p>
+                    
+                    {!hasStartedExam && exam?.proctoring?.camera && (
+                        <div style={{ marginBottom: '32px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', minWidth: '300px' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>AI Pre-Check Status</div>
+                            {frameStatus === 'loading' && <div style={{ color: '#60a5fa', fontWeight: '600' }}>Loading AI Models...</div>}
+                            {frameStatus === 'no_person' && <div style={{ color: '#ef4444', fontWeight: '600' }}>No face detected in camera frame</div>}
+                            {frameStatus === 'multiple_persons' && <div style={{ color: '#ef4444', fontWeight: '600' }}>Multiple people detected in frame</div>}
+                            {frameStatus === 'valid' && <div style={{ color: '#10b981', fontWeight: '600' }}>Frame Verified - Ready</div>}
+                        </div>
+                    )}
+
                     <button
                         onClick={enterFullscreen}
+                        disabled={!hasStartedExam && exam?.proctoring?.camera && frameStatus !== 'valid'}
                         style={{
-                            background: '#2563eb', color: '#fff', padding: '14px 40px',
+                            background: (hasStartedExam || !exam?.proctoring?.camera || frameStatus === 'valid') ? '#2563eb' : 'rgba(37,99,235,0.3)', 
+                            color: (hasStartedExam || !exam?.proctoring?.camera || frameStatus === 'valid') ? '#fff' : 'rgba(255,255,255,0.4)', 
+                            padding: '14px 40px',
                             borderRadius: '12px', fontWeight: '800', fontSize: '15px',
-                            border: 'none', cursor: 'pointer',
-                            boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
+                            border: 'none', cursor: (hasStartedExam || !exam?.proctoring?.camera || frameStatus === 'valid') ? 'pointer' : 'not-allowed',
+                            boxShadow: (hasStartedExam || !exam?.proctoring?.camera || frameStatus === 'valid') ? '0 4px 20px rgba(37,99,235,0.4)' : 'none',
                         }}
                     >
                         Enter Fullscreen
@@ -1018,54 +1063,77 @@ const ExamPage = () => {
                 </div>
             </main>
 
-            <WebcamMonitor
-                allowCamera={exam?.proctoring?.camera ?? true}
-                allowMicrophone={exam?.proctoring?.microphone ?? false}
-                onStatusChange={(status) => setMediaStatus(status)}
-                examResultId={resultId}
-                onViolation={(reason) => {
-                    setAiViolations(v => v + 1);
-                    const remaining = VIOLATION_LIMIT - (tabSwitches + fullscreenExits + aiViolations + 1);
-                    if (remaining >= 0) {
-                        toast.error(`AI PROCTORING ALERT: ${reason}. Warning: ${remaining} chances remaining.`, {
-                            duration: 6000,
-                            style: { backgroundColor: '#ef4444', color: '#fff', fontWeight: 'bold' }
-                        });
-                    }
-                }}
-            />
+            {hasAcceptedProtocols && (
+                <WebcamMonitor
+                    allowCamera={exam?.proctoring?.camera ?? true}
+                    allowMicrophone={exam?.proctoring?.microphone ?? false}
+                    onStatusChange={(status) => setMediaStatus(status)}
+                    onFrameStatus={(status) => setFrameStatus(status)}
+                    showPreview={!isFullscreen && !hasStartedExam}
+                    isExamActive={hasStartedExam}
+                    examResultId={resultId}
+                    violations={{ tabSwitches, fullscreenExits, aiViolations }}
+                    onViolation={(reason) => {
+                        setAiViolations(v => v + 1);
+                        const remaining = VIOLATION_LIMIT - (aiViolations + 1);
+                        if (remaining >= 0) {
+                            toast.error(`CAMERA ALERT: ${reason}. Warning: ${remaining} camera chances remaining.`, {
+                                duration: 6000,
+                                style: { backgroundColor: '#ef4444', color: '#fff', fontWeight: 'bold' }
+                            });
+                        }
+                    }}
+                />
+            )}
 
             {/* ── MEDIA ACCESS GATE ── */}
-            {(mediaStatus === 'denied' || mediaStatus === 'not-found') && (
+            {hasAcceptedProtocols && mediaStatus !== 'granted' && (
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(15,15,26,0.98)',
                     zIndex: 200, display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '24px',
                 }}>
-                    <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-                        {exam?.proctoring?.camera && <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CameraOff size={32} style={{ color: '#ef4444' }} /></div>}
-                        {exam?.proctoring?.microphone && <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><MicOff size={32} style={{ color: '#ef4444' }} /></div>}
-                    </div>
-                    <h2 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', marginBottom: '12px' }}>
-                        {mediaStatus === 'not-found' ? 'Hardware Not Detected' : 'Access Denied'}
-                    </h2>
-                    <p style={{ color: '#64748b', maxWidth: '450px', marginBottom: '32px', lineHeight: 1.6 }}>
-                        {mediaStatus === 'not-found'
-                            ? `We couldn't detect a required ${exam?.proctoring?.camera ? 'camera' : ''} ${exam?.proctoring?.camera && exam?.proctoring?.microphone ? 'or' : ''} ${exam?.proctoring?.microphone ? 'microphone' : ''}. Please plug in the necessary hardware and refresh.`
-                            : `You have blocked camera/microphone access. This exam cannot be taken without active monitoring. Please enable permissions in your browser settings and refresh.`
-                        }
-                    </p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        style={{
-                            background: '#2563eb', color: '#fff', padding: '14px 40px',
-                            borderRadius: '12px', fontWeight: '800', fontSize: '15px',
-                            border: 'none', cursor: 'pointer',
-                            boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
-                        }}
-                    >
-                        Refresh & Try Again
-                    </button>
+                    <style>{`@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.1); } }`}</style>
+                    {mediaStatus === 'pending' ? (
+                        <>
+                            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+                                <Video size={32} style={{ color: '#3b82f6', animation: 'pulse 2s infinite' }} />
+                            </div>
+                            <h2 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', marginBottom: '12px' }}>
+                                Requesting Hardware Access
+                            </h2>
+                            <p style={{ color: '#64748b', maxWidth: '450px', marginBottom: '32px', lineHeight: 1.6 }}>
+                                Please allow camera and microphone permissions in your browser when prompted to proceed with the exam.
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+                                {exam?.proctoring?.camera && <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CameraOff size={32} style={{ color: '#ef4444' }} /></div>}
+                                {exam?.proctoring?.microphone && <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><MicOff size={32} style={{ color: '#ef4444' }} /></div>}
+                            </div>
+                            <h2 style={{ color: '#fff', fontSize: '28px', fontWeight: '800', marginBottom: '12px' }}>
+                                {mediaStatus === 'not-found' ? 'Hardware Not Detected' : 'Access Denied'}
+                            </h2>
+                            <p style={{ color: '#64748b', maxWidth: '450px', marginBottom: '32px', lineHeight: 1.6 }}>
+                                {mediaStatus === 'not-found'
+                                    ? `We couldn't detect a required ${exam?.proctoring?.camera ? 'camera' : ''} ${exam?.proctoring?.camera && exam?.proctoring?.microphone ? 'or' : ''} ${exam?.proctoring?.microphone ? 'microphone' : ''}. Please plug in the necessary hardware and refresh.`
+                                    : `You have blocked camera/microphone access. This exam cannot be taken without active monitoring. Please enable permissions in your browser settings and refresh.`
+                                }
+                            </p>
+                            <button
+                                onClick={() => window.location.reload()}
+                                style={{
+                                    background: '#2563eb', color: '#fff', padding: '14px 40px',
+                                    borderRadius: '12px', fontWeight: '800', fontSize: '15px',
+                                    border: 'none', cursor: 'pointer',
+                                    boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
+                                }}
+                            >
+                                Refresh & Try Again
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 

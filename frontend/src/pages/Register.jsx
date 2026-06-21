@@ -69,6 +69,29 @@ const Register = () => {
         if (formData.password !== formData.confirmPassword) {
             return toast.error('Passwords do not match');
         }
+
+        const emailDomain = formData.email.split('@')[1]?.toLowerCase() || '';
+        const allowedDomains = ['gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'aol.com', 'protonmail.com', 'zoho.com', 'live.com', 'msn.com', 'ymail.com', 'googlemail.com', 'apex.com'];
+        const isEduDomain = emailDomain.endsWith('.edu') || emailDomain.endsWith('.edu.in') || emailDomain.endsWith('.ac.in');
+
+        if (!allowedDomains.includes(emailDomain) && !isEduDomain) {
+            return toast.error('Please use a valid institution or primary email provider. Temporary emails are strictly blocked.');
+        }
+
+        // Password strength validation
+        const password = formData.password;
+        if (password.length < 10 || password.length > 16) {
+            return toast.error('Password must be between 10 and 16 characters long');
+        }
+        if (!/[A-Z]/.test(password)) {
+            return toast.error('Password must contain at least one uppercase letter');
+        }
+        if (!/[a-z]/.test(password)) {
+            return toast.error('Password must contain at least one lowercase letter');
+        }
+        if (!/[^A-Za-z0-9]/.test(password)) {
+            return toast.error('Password must contain at least one special character');
+        }
         if (formData.mobileNumber.length !== 13) {
             return toast.error('Mobile number must be exactly 10 digits with +91');
         }
@@ -97,7 +120,7 @@ const Register = () => {
     const handleVerifyOTP = async (e) => {
         e.preventDefault();
         if (otp.length !== 6) return toast.error('Please enter a valid 6-digit code');
-        
+
         setLoading(true);
         try {
             const res = await verifyOTP({ ...formData, otp });
@@ -239,6 +262,8 @@ const Register = () => {
                                         <input
                                             type="password"
                                             required
+                                            minLength={10}
+                                            maxLength={16}
                                             className="w-full text-sm pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold"
                                             placeholder="••••••••"
                                             value={formData.password}
@@ -254,6 +279,8 @@ const Register = () => {
                                         <input
                                             type="password"
                                             required
+                                            minLength={10}
+                                            maxLength={16}
                                             className="w-full text-sm pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold"
                                             placeholder="••••••••"
                                             value={formData.confirmPassword}

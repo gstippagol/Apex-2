@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import {
     Search, Award, ChevronDown, User as UserIcon,
     Calendar, BarChart, PieChart, Info, Eye, X,
@@ -26,19 +27,6 @@ const TestResults = () => {
     ? `http://${window.location.hostname}:5000`
     : 'https://apex-s1q2.onrender.com';
 
-    useEffect(() => {
-        fetchExams();
-    }, []);
-
-    useEffect(() => {
-        if (selectedResult) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
-        return () => { document.body.style.overflow = 'unset'; };
-    }, [selectedResult]);
-
     const fetchExams = async () => {
         try {
             const res = await axios.get(`${API_BASE}/api/exams`);
@@ -60,6 +48,36 @@ const TestResults = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchExams();
+    }, []);
+
+    useEffect(() => {
+        if (selectedResult) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [selectedResult]);
+
+    // Socket.IO auto-update listener
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data-updated', (data) => {
+            if (data.type === 'exam' || data.type === 'result') {
+                console.log('TestResults data updated, refetching...');
+                fetchExams();
+                if (selectedExamId) {
+                    axios.get(`${API_BASE}/api/results/exam/${selectedExamId}`)
+                        .then(res => setResults(res.data.data))
+                        .catch(err => console.error('Failed to fetch updated results', err));
+                }
+            }
+        });
+        return () => socket.disconnect();
+    }, [selectedExamId]);
 
     const handleRunPlagiarismAnalysis = async () => {
         if (!selectedExamId) return toast.error('Please select an assessment first');
@@ -216,7 +234,6 @@ const TestResults = () => {
                 head: [tableColumn],
                 body: tableRows,
                 theme: 'grid',
-                margin: { top: 110, bottom: 65 },
                 headStyles: {
                     fillColor: [255, 255, 255],
                     textColor: [0, 0, 0],
@@ -235,7 +252,7 @@ const TestResults = () => {
                 columnStyles: {
                     0: { halign: 'left' }
                 },
-                margin: { left: 20, right: 20 }
+                margin: { top: 30, bottom: 40, left: 20, right: 20 }
             });
 
             // --- 5. Signatories & Footer ---
@@ -308,7 +325,7 @@ const TestResults = () => {
                 body: top5TableRows,
                 theme: 'striped',
                 headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255] },
-                margin: { left: 20, right: 20 }
+                margin: { bottom: 40, left: 20, right: 20 }
             });
 
             // --- 6. Signatories (Last Page Bottom Only) ---
@@ -630,17 +647,25 @@ const TestResults = () => {
                                         </div>
 
                                         {/* Violations */}
-                                        {selectedResult.violations && selectedResult.violations.length > 0 && (
-                                            <div className="bg-rose-50 rounded-2xl p-6 border border-rose-200">
-                                                <p className="text-xs font-black text-rose-600 uppercase tracking-widest mb-4">⚠️ Violations Detected</p>
-                                                <ul className="space-y-2">
-                                                    {selectedResult.violations.map((v, i) => (
-                                                        <li key={i} className="text-sm font-bold text-rose-700 flex items-start gap-2">
-                                                            <span className="text-rose-500 mt-1">•</span>
-                                                            <span>{v.type}: {v.details}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
+                                        {selectedResult.violations && (selectedResult.violations.tabSwitches > 0 || selectedResult.violations.fullscreenExits > 0 || selectedResult.violations.aiViolations > 0) && (
+                                            <div className="bg-rose-50/50 rounded-2xl p-6 border border-rose-100">
+                                                <p className="text-xs font-black text-rose-500 uppercase tracking-widest mb-4">⚠️ Proctoring Violations</p>
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                    <div className="bg-white p-4 rounded-xl border border-rose-100 flex flex-col items-center justify-center text-center shadow-sm">
+                                                        <span className="text-2xl font-black text-rose-600">{selectedResult.violations.tabSwitches || 0}</span>
+                                                        <span className="text-[9px] font-black uppercase text-slate-500 mt-1">Tab Switches</span>
+                                                    </div>
+                                                    <div className="bg-white p-4 rounded-xl border border-rose-100 flex flex-col items-center justify-center text-center shadow-sm">
+                                                        <span className="text-2xl font-black text-rose-600">{selectedResult.violations.fullscreenExits || 0}</span>
+                                                        <span className="text-[9px] font-black uppercase text-slate-500 mt-1">Fullscreen Exits</span>
+                                                    </div>
+                                                    {exams.find(e => e._id === selectedExamId)?.proctoring?.camera && (
+                                                        <div className="bg-white p-4 rounded-xl border border-rose-100 flex flex-col items-center justify-center text-center shadow-sm">
+                                                            <span className="text-2xl font-black text-rose-600">{selectedResult.violations.aiViolations || 0}</span>
+                                                            <span className="text-[9px] font-black uppercase text-slate-500 mt-1">Camera Violations</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>

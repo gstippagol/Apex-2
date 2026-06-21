@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { Award, ChevronRight, Search, LayoutGrid, List } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -15,10 +16,6 @@ const CertificateManager = () => {
     ? `http://${window.location.hostname}:5000`
     : 'https://apex-s1q2.onrender.com';
 
-    useEffect(() => {
-        fetchExams();
-    }, []);
-
     const fetchExams = async () => {
         try {
             const res = await axios.get(`${API_BASE}/api/exams`);
@@ -29,6 +26,21 @@ const CertificateManager = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchExams();
+    }, []);
+
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data-updated', (data) => {
+            if (data.type === 'exam') {
+                console.log('CertificateManager: Exam updated, refetching...');
+                fetchExams();
+            }
+        });
+        return () => socket.disconnect();
+    }, []);
 
     const filteredExams = exams.filter(e => 
         e.title.toLowerCase().includes(searchTerm.toLowerCase())

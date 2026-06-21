@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 import Navbar from '../components/Navbar';
 import LoadingScreen from '../components/LoadingScreen';
 import { 
@@ -138,10 +139,6 @@ const QuizDetails = () => {
         }
     });
 
-    useEffect(() => {
-        fetchQuiz();
-    }, [id]);
-
     const fetchQuiz = async () => {
         try {
             const res = await axios.get(`${API_BASE}/api/quiz/${id}`);
@@ -161,6 +158,21 @@ const QuizDetails = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchQuiz();
+    }, [id]);
+
+    useEffect(() => {
+        const socket = io(API_BASE);
+        socket.on('data-updated', (data) => {
+            if (data.type === 'quiz' || data.type === 'question') {
+                console.log('Quiz or Question data updated, refetching details...');
+                fetchQuiz();
+            }
+        });
+        return () => socket.disconnect();
+    }, [id]);
 
     const handleUpdateQuiz = async (e) => {
         e.preventDefault();

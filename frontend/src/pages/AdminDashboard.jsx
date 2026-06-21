@@ -62,9 +62,8 @@ const SidebarLink = ({ id, icon: Icon, label, activeTab, sidebarRef, navigate })
             navigate(`/admin?tab=${id}`, { replace: true });
             window.scrollTo(0, 0);
         }}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors duration-200 ${
-            activeTab === id ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'
-        }`}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors duration-200 ${activeTab === id ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'
+            }`}
         style={{ height: '48px' }}
     >
         <Icon size={20} className="shrink-0" />
@@ -79,9 +78,8 @@ const MobileTabButton = ({ id, icon: Icon, label, onClick, activeTab, navigate, 
             window.scrollTo(0, 0);
             setIsMoreMenuOpen(false);
         })}
-        className={`flex flex-col items-center gap-1 p-2 flex-1 transition-colors duration-200 ${
-            activeTab === id ? 'text-blue-600' : 'text-slate-400'
-        }`}
+        className={`flex flex-col items-center gap-1 p-2 flex-1 transition-colors duration-200 ${activeTab === id ? 'text-blue-600' : 'text-slate-400'
+            }`}
     >
         <div className={`p-1.5 rounded-xl transition-colors duration-200 ${activeTab === id ? 'bg-blue-50' : ''}`}>
             <Icon size={20} className="shrink-0" />
@@ -94,6 +92,33 @@ const AdminDashboard = () => {
     const navigate = useNavigate();
     const socketRef = useRef(null);
     const sidebarRef = useRef(null);
+    const adminPeerConnectionRef = useRef(null);
+    const jitsiAdminApiRef = useRef(null);
+
+    const getStreamingBackend = (uid) => {
+        if (!uid) return 'webrtc';
+        let hash = 0;
+        for (let i = 0; i < uid.length; i++) {
+            hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % 3;
+        const backends = ['webrtc', 'livekit', 'jitsi'];
+        return backends[index];
+    };
+
+    const loadJitsiScript = () => {
+        return new Promise((resolve) => {
+            if (window.JitsiMeetExternalAPI) {
+                resolve(true);
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://meet.element.io/external_api.js';
+            script.async = true;
+            script.onload = () => resolve(true);
+            document.body.appendChild(script);
+        });
+    };
 
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
@@ -142,6 +167,11 @@ const AdminDashboard = () => {
     const [results, setResults] = useState([]);
     const [activeSessions, setActiveSessions] = useState([]);
     const [selectedSession, setSelectedSession] = useState(null);
+    const selectedSessionRef = useRef(selectedSession);
+    useEffect(() => {
+        selectedSessionRef.current = selectedSession;
+    }, [selectedSession]);
+    const [socketConnected, setSocketConnected] = useState(false);
     const [showSuspendModal, setShowSuspendModal] = useState(false);
     const [suspensionReason, setSuspensionReason] = useState('');
     const [showMessageModal, setShowMessageModal] = useState(false);
@@ -190,7 +220,7 @@ const AdminDashboard = () => {
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
 
-                        // Helper to load image as a Promise
+            // Helper to load image as a Promise
             const loadImg = (src) => {
                 return new Promise((resolve) => {
                     const img = new Image();
@@ -241,7 +271,7 @@ const AdminDashboard = () => {
             doc.setFont('helvetica', 'normal');
             doc.text("Manasagangotri Campus, Mysuru (Approved by AICTE, New Delhi)", pageWidth / 2, 21, { align: 'center' });
 
-                        if (logoMUSEImg) {
+            if (logoMUSEImg) {
                 try {
                     doc.addImage(logoMUSEImg, 'PNG', pageWidth - 35, 10, 20, 20);
                 } catch (e) {
@@ -265,7 +295,7 @@ const AdminDashboard = () => {
             const startX = (pageWidth - totalWidth) / 2;
 
             doc.text("APEX", startX, 48);
-                        if (logoApexImg) {
+            if (logoApexImg) {
                 try {
                     doc.addImage(logoApexImg, 'PNG', startX + apexWidth + spacing, 30, logoW, logoH);
                 } catch (e) { }
@@ -319,7 +349,7 @@ const AdminDashboard = () => {
                     0: { halign: 'left', cellWidth: 40 },
                     3: { halign: 'left', cellWidth: 50 }
                 },
-                margin: { left: 20, right: 20 }
+                margin: { top: 30, bottom: 40, left: 20, right: 20 }
             });
 
             // --- 4. Footer ---
@@ -405,29 +435,27 @@ const AdminDashboard = () => {
 
     // Auto-generate password for Add User
     useEffect(() => {
-        if (addUserForm.name && addUserForm.usn && addUserForm.usn.length >= 5) {
+        if (addUserForm.name && addUserForm.mobileNumber && addUserForm.mobileNumber.length >= 7) {
             const firstName = addUserForm.name.trim().split(' ')[0];
             const formattedName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
-            const usnLast5 = addUserForm.usn.slice(-5);
-            setAddUserForm(prev => ({ ...prev, password: `${formattedName}${usnLast5}@apex` }));
+            const slicedName = formattedName.slice(0, 5);
+            const last4Mobile = addUserForm.mobileNumber.slice(-4);
+            setAddUserForm(prev => ({ ...prev, password: `${slicedName}${last4Mobile}@apex` }));
         }
-    }, [addUserForm.name, addUserForm.usn]);
+    }, [addUserForm.name, addUserForm.mobileNumber]);
 
-    // Auto-generate password for Edit User (only if name/usn changes and password was empty or previously auto-generated)
+    // Auto-generate password for Edit User (only if name/mobileNumber changes and password was empty)
     useEffect(() => {
-        if (editMode && editForm.name && editForm.usn && editForm.usn.length >= 5) {
-            // For edit mode, we only auto-suggest if the admin hasn't manually typed a custom password
-            // but usually for edit we might want to keep it blank unless requested.
-            // User asked for "after entering password will automatically generate below" which usually implies the ADD form.
-            // I'll keep it primarily for ADD form but if they change USN/Name in EDIT and password is blank, I'll suggest it.
+        if (editMode && editForm.name && editForm.mobileNumber && editForm.mobileNumber.length >= 7) {
             if (!editForm.password) {
                 const firstName = editForm.name.trim().split(' ')[0];
                 const formattedName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
-                const usnLast5 = editForm.usn.slice(-5);
-                setEditForm(prev => ({ ...prev, password: `${formattedName}${usnLast5}@apex` }));
+                const slicedName = formattedName.slice(0, 5);
+                const last4Mobile = editForm.mobileNumber.slice(-4);
+                setEditForm(prev => ({ ...prev, password: `${slicedName}${last4Mobile}@apex` }));
             }
         }
-    }, [editForm.name, editForm.usn, editMode]);
+    }, [editForm.name, editForm.mobileNumber, editMode]);
 
     const fetchNotices = async () => {
         try {
@@ -586,28 +614,36 @@ const AdminDashboard = () => {
         });
         socketRef.current = socket;
 
+        socket.on('connect', () => {
+            setSocketConnected(true);
+        });
+
+        socket.on('disconnect', () => {
+            setSocketConnected(false);
+        });
+
         // Map to throttle state updates per user
         const lastStateUpdates = new Map();
 
         socket.on('live-update', (data) => {
             // High-frequency direct DOM manipulation to bypass React state bottlenecks
             const imgEl = document.getElementById('live-stream-img');
-            if (imgEl && imgEl.dataset.userid === data.userId) {
+            if (imgEl && imgEl.dataset.userid === data.userId && data.snapshot) {
                 imgEl.src = data.snapshot;
                 imgEl.style.display = 'block';
                 const placeholder = document.getElementById('live-stream-placeholder');
                 if (placeholder) placeholder.style.display = 'none';
             }
-            
+
             const micEl = document.getElementById('live-stream-mic');
-            if (micEl && micEl.dataset.userid === data.userId) {
+            if (micEl && micEl.dataset.userid === data.userId && data.micActivity !== undefined) {
                 micEl.style.width = `${Math.min(100, data.micActivity)}%`;
                 micEl.className = `h-full transition-all duration-300 ${data.micActivity > 60 ? 'bg-rose-500' : 'bg-green-500'}`;
             }
 
-            // Throttle React state updates to once every 5 seconds per student to prevent CPU lockup
+            // Throttle React state updates to once every 1 second per student to prevent CPU lockup
             const last = lastStateUpdates.get(data.userId) || 0;
-            if (Date.now() - last > 5000) {
+            if (Date.now() - last > 1000) {
                 lastStateUpdates.set(data.userId, Date.now());
                 setActiveSessions(prev => {
                     const index = prev.findIndex(s => (s.userId?._id || s.userId) === data.userId);
@@ -615,14 +651,28 @@ const AdminDashboard = () => {
                         const newSessions = [...prev];
                         newSessions[index] = {
                             ...newSessions[index],
-                            liveSnapshot: data.snapshot,
-                            micActivity: data.micActivity,
-                            lastActive: data.timestamp
+                            liveSnapshot: data.snapshot !== undefined ? data.snapshot : newSessions[index].liveSnapshot,
+                            micActivity: data.micActivity !== undefined ? data.micActivity : newSessions[index].micActivity,
+                            streamingBackend: data.streamingBackend !== undefined ? data.streamingBackend : newSessions[index].streamingBackend,
+                            lastActive: data.timestamp || Date.now(),
+                            violations: data.violations !== undefined ? data.violations : newSessions[index].violations
                         };
                         return newSessions;
                     }
                     return prev;
                 });
+            }
+        });
+
+        socket.on('session-submitted', (data) => {
+            console.log("Session submitted via socket:", data);
+            const currentSelected = selectedSessionRef.current;
+            if (currentSelected) {
+                const sessionUserId = currentSelected.userId?._id || currentSelected.userId;
+                if (String(currentSelected._id) === String(data.resultId) || String(sessionUserId) === String(data.userId)) {
+                    setSelectedSession(null);
+                    toast.success('This student has submitted the exam.');
+                }
             }
         });
 
@@ -634,28 +684,288 @@ const AdminDashboard = () => {
         return () => socket.disconnect();
     }, []); // Only connect once on mount
 
-    // Separate effect to join rooms when exams change
+    // Separate effect to join rooms when exams change or socket connects
     useEffect(() => {
-        if (socketRef.current && socketRef.current.connected && exams.length > 0) {
+        if (socketRef.current && socketConnected && exams.length > 0) {
             exams.forEach(e => {
                 socketRef.current.emit('join-exam', { examId: e._id, role: 'admin' });
             });
         }
-    }, [exams]);
+    }, [exams, socketConnected]);
+
+    // Join room for the currently selected session's exam to ensure we receive submitted events
+    useEffect(() => {
+        if (socketRef.current && socketConnected && selectedSession) {
+            const eId = selectedSession.examId?._id || selectedSession.examId;
+            if (eId) {
+                console.log("Admin joining room for selected session:", eId);
+                socketRef.current.emit('join-exam', { examId: eId, role: 'admin' });
+            }
+        }
+    }, [selectedSession, socketConnected]);
 
     // Update selectedSession from activeSessions
     useEffect(() => {
         if (selectedSession) {
             const updated = activeSessions.find(s => s._id === selectedSession._id);
-            if (updated) setSelectedSession(updated);
+            if (updated) {
+                setSelectedSession(updated);
+            } else {
+                // Student session is no longer in activeSessions.
+                // Fetch the latest result document to see if they actually submitted the exam.
+                const checkSubmissionStatus = async () => {
+                    try {
+                        const targetId = selectedSession._id;
+                        const res = await axios.get(`${API_BASE}/api/results/${targetId}`);
+                        if (res.data.success && res.data.data) {
+                            const currentStatus = res.data.data.status;
+                            if (currentStatus === 'Submitted') {
+                                setSelectedSession(prev => (prev && prev._id === targetId) ? null : prev);
+                                toast.success('This student has submitted the exam.');
+                            } else if (currentStatus === 'Suspended') {
+                                setSelectedSession(prev => (prev && prev._id === targetId) ? null : prev);
+                                toast.error('Student session suspended. Stream ended.');
+                            } else {
+                                // If the status is still Ongoing, it's just a transient disconnect.
+                                // Keep selectedSession open to allow auto-reconnect, and do not show any toast.
+                                console.log("Student is temporarily disconnected. Keeping stream container open.");
+                            }
+                        } else {
+                            setSelectedSession(prev => (prev && prev._id === targetId) ? null : prev);
+                        }
+                    } catch (err) {
+                        console.error("Error checking result submission status:", err);
+                    }
+                };
+                checkSubmissionStatus();
+            }
         }
     }, [activeSessions, selectedSession?._id]);
+
+    // Periodically fetch active sessions every second to keep live monitoring updated
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const res = await axios.get(`${API_BASE}/api/results/active`);
+                setActiveSessions(res.data.data || []);
+            } catch (err) {
+                console.error("Failed to periodically fetch active sessions", err);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [API_BASE]);
 
     useEffect(() => {
         if (activeTab === 'blocked-users') {
             fetchBlockedUsers();
         }
     }, [activeTab]);
+
+    // Admin Jitsi Meet stream mount effect
+    useEffect(() => {
+        if (!selectedSession) return;
+        const studentId = selectedSession.userId?._id || selectedSession.userId;
+        const examId = selectedSession.examId?._id || selectedSession.examId;
+        const backend = selectedSession.streamingBackend || getStreamingBackend(studentId);
+
+        if (backend !== 'jitsi' || !studentId || !examId) return;
+
+        let active = true;
+        const initJitsiAdmin = async () => {
+            await loadJitsiScript();
+            if (!active) return;
+
+            const domain = "meet.element.io";
+            const options = {
+                roomName: `apex-proctoring-${examId}-${studentId}`,
+                width: '100%',
+                height: '100%',
+                parentNode: document.getElementById('jitsi-admin-container'),
+                configOverwrite: {
+                    resolution: 240,
+                    startWithAudioMuted: true,
+                    startWithVideoMuted: true,
+                    prejoinPageEnabled: false,
+                    prejoinConfig: {
+                        enabled: false
+                    },
+                    startSilent: true,
+                    disableSelfView: true,
+                    readOnlyName: true,
+                    toolbarButtons: [],
+                    filmstrip: {
+                        disabled: true
+                    },
+                    enableNoAudioDetection: false,
+                    enableNoisyMicDetection: false,
+                    disabledNotifications: [
+                        'audioOnly.silentJoined',
+                        'dialog.silentJoined',
+                        'notify.silent-joined',
+                        'silent-joined',
+                        'audio-only.silent-joined',
+                        'notify.startSilentTitle',
+                        'notify.startSilentDescription',
+                        'notify.startSilent',
+                        'dialog.startSilentTitle',
+                        'dialog.startSilentDescription',
+                        'dialog.startSilent',
+                        'startSilentTitle',
+                        'startSilentDescription',
+                        'startSilent',
+                        'audioOnly.startSilentTitle',
+                        'audioOnly.startSilentDescription',
+                        'audioOnly.startSilent',
+                        'toolbar.talkWhileMutedPopup',
+                        'toolbar.noisyAudioInputTitle',
+                        'toolbar.noAudioSignalTitle',
+                        'dialog.micNotAllowed',
+                        'dialog.cameraNotAllowed',
+                        'dialog.micError',
+                        'dialog.cameraError',
+                        'dialog.cameraPermissionDenied',
+                        'dialog.micPermissionDenied',
+                        'notify.micNotAllowed',
+                        'notify.cameraNotAllowed',
+                        'dialog.deviceErrorTitle',
+                        'dialog.deviceNotFoundError',
+                        'dialog.devicePermissionDenied',
+                        'dialog.detectAudioMuting',
+                        'dialog.detectAudioMutting',
+                        'dialog.detectAudioMuted',
+                        'dialog.connectError'
+                    ]
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: [],
+                }
+            };
+            try {
+                if (jitsiAdminApiRef.current) {
+                    jitsiAdminApiRef.current.dispose();
+                }
+                jitsiAdminApiRef.current = new window.JitsiMeetExternalAPI(domain, options);
+                
+                jitsiAdminApiRef.current.addListener('participantJoined', (participant) => {
+                    if (participant && participant.id) {
+                        jitsiAdminApiRef.current.executeCommand('pinParticipant', participant.id);
+                    }
+                });
+
+                jitsiAdminApiRef.current.addListener('videoConferenceJoined', () => {
+                    const participants = jitsiAdminApiRef.current.getParticipantsInfo();
+                    if (participants && participants.length > 0) {
+                        jitsiAdminApiRef.current.executeCommand('pinParticipant', participants[0].participantId);
+                    }
+                });
+
+                console.log("Jitsi Admin Viewer Established");
+            } catch (e) {
+                console.error("Jitsi admin init failed", e);
+            }
+        };
+
+        initJitsiAdmin();
+
+        return () => {
+            active = false;
+            if (jitsiAdminApiRef.current) {
+                jitsiAdminApiRef.current.dispose();
+                jitsiAdminApiRef.current = null;
+            }
+        };
+    }, [selectedSession?._id]);
+
+    // Admin WebRTC streaming connection effect
+    useEffect(() => {
+        const socket = socketRef.current;
+        if (!socket || !selectedSession) return;
+
+        const studentId = selectedSession.userId?._id || selectedSession.userId;
+        const examId = selectedSession.examId?._id || selectedSession.examId;
+        const backend = selectedSession.streamingBackend || getStreamingBackend(studentId);
+
+        if (backend !== 'webrtc' && backend !== 'livekit') return;
+
+        console.log(`WebRTC: Initiating stream connection with student ${studentId} for exam ${examId}`);
+
+        // Emit initiate to student
+        socket.emit('webrtc-initiate', { examId, userId: studentId });
+
+        const handleOffer = async ({ userId, offer }) => {
+            if (userId !== studentId) return;
+            console.log("WebRTC: Received offer from student:", userId);
+
+            if (adminPeerConnectionRef.current) {
+                adminPeerConnectionRef.current.close();
+            }
+
+            const pc = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+            adminPeerConnectionRef.current = pc;
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('webrtc-candidate', {
+                        examId,
+                        userId: studentId,
+                        candidate: event.candidate,
+                        target: 'student'
+                    });
+                }
+            };
+
+            pc.ontrack = (event) => {
+                console.log("WebRTC: Received track from student");
+                const videoEl = document.getElementById('webrtc-admin-video');
+                if (videoEl && event.streams[0]) {
+                    videoEl.srcObject = event.streams[0];
+                    videoEl.style.display = 'block';
+                    const placeholder = document.getElementById('live-stream-placeholder');
+                    if (placeholder) placeholder.style.display = 'none';
+                    const imgEl = document.getElementById('live-stream-img');
+                    if (imgEl) imgEl.style.display = 'none';
+                }
+            };
+
+            try {
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                socket.emit('webrtc-answer', {
+                    examId,
+                    userId: studentId,
+                    answer
+                });
+            } catch (e) {
+                console.error("WebRTC: Failed to set offer / create answer", e);
+            }
+        };
+
+        const handleCandidate = async ({ userId, candidate }) => {
+            if (userId !== studentId) return;
+            if (adminPeerConnectionRef.current && candidate) {
+                try {
+                    await adminPeerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.error("WebRTC: Failed to add ICE candidate", e);
+                }
+            }
+        };
+
+        socket.on('webrtc-offer', handleOffer);
+        socket.on('webrtc-candidate', handleCandidate);
+
+        return () => {
+            socket.off('webrtc-offer', handleOffer);
+            socket.off('webrtc-candidate', handleCandidate);
+            if (adminPeerConnectionRef.current) {
+                adminPeerConnectionRef.current.close();
+                adminPeerConnectionRef.current = null;
+            }
+        };
+    }, [selectedSession?._id]);
 
     const fetchBlockedUsers = async () => {
         setIsBlockedLoading(true);
@@ -994,7 +1304,7 @@ const AdminDashboard = () => {
             <Navbar />
 
             <div className="flex-1 flex flex-col md:flex-row relative">
-                <aside 
+                <aside
                     ref={sidebarRef}
                     className="hidden md:block md:w-64 bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-6 md:fixed md:top-[140px] md:bottom-8 md:left-8 z-20 overflow-y-auto overflow-x-hidden custom-scrollbar sidebar-stable"
                 >
@@ -1106,7 +1416,7 @@ const AdminDashboard = () => {
                                 {activeTab === 'overview' && (
                                     <div className="space-y-8">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                            <StatsCard label="Active Exams" value={exams.filter(e => e.status === 'Ongoing').length} icon={ShieldCheck} color="bg-emerald-500" />
+                                            <StatsCard label="Active Exams" value={exams.filter(e => e.status === 'Ongoing' || e.status === 'Published').length} icon={ShieldCheck} color="bg-emerald-500" />
                                             <StatsCard label="Total Exams" value={exams.length} icon={List} color="bg-blue-500" />
                                             <StatsCard label="Participants" value={results.length} icon={Users} color="bg-amber-500" />
                                         </div>
@@ -1986,7 +2296,7 @@ const AdminDashboard = () => {
                                                 <h2 className="text-2xl font-black text-slate-800 tracking-tight">Feedback Hub</h2>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Review student & guest submissions</p>
                                             </div>
-                                            
+
                                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                                                 {/* Search Bar */}
                                                 <div className="relative w-full sm:w-auto">
@@ -2026,7 +2336,7 @@ const AdminDashboard = () => {
                                             </div>
                                         ) : (() => {
                                             const filtered = feedbacks.filter(fb => {
-                                                const matchesSearch = 
+                                                const matchesSearch =
                                                     fb.name?.toLowerCase().includes(feedbackSearch.toLowerCase()) ||
                                                     fb.email?.toLowerCase().includes(feedbackSearch.toLowerCase()) ||
                                                     fb.message?.toLowerCase().includes(feedbackSearch.toLowerCase()) ||
@@ -2058,19 +2368,18 @@ const AdminDashboard = () => {
                                                             >
                                                                 <div>
                                                                     <div className="flex justify-between items-start gap-4 mb-5">
-                                                                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-                                                                            fb.category === 'Exams' ? 'bg-sky-50 text-sky-600 border border-sky-100' :
-                                                                            fb.category === 'Website' ? 'bg-violet-50 text-violet-600 border border-violet-100' :
-                                                                            fb.category === 'Apex Club' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                                                            'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                                                        }`}>
+                                                                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${fb.category === 'Exams' ? 'bg-sky-50 text-sky-600 border border-sky-100' :
+                                                                                fb.category === 'Website' ? 'bg-violet-50 text-violet-600 border border-violet-100' :
+                                                                                    fb.category === 'Apex Club' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                                                        'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                                            }`}>
                                                                             {fb.category === 'Exams' && '📝 '}
                                                                             {fb.category === 'Website' && '🌐 '}
                                                                             {fb.category === 'Apex Club' && '⚡ '}
                                                                             {fb.category === 'General' && '💬 '}
                                                                             {fb.category}
                                                                         </span>
-                                                                        
+
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
@@ -2090,9 +2399,8 @@ const AdminDashboard = () => {
                                                                         <div className="min-w-0 flex-1">
                                                                             <div className="flex flex-wrap items-center gap-1.5">
                                                                                 <h3 className="font-black text-slate-800 text-base leading-snug group-hover:text-blue-600 transition-colors truncate">{fb.name}</h3>
-                                                                                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${
-                                                                                    isStudent ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
-                                                                                }`}>
+                                                                                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${isStudent ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'
+                                                                                    }`}>
                                                                                     {isStudent ? 'Student' : 'Guest'}
                                                                                 </span>
                                                                             </div>
@@ -2106,7 +2414,7 @@ const AdminDashboard = () => {
                                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">USN / ID</span>
                                                                         <span className="text-xs font-black text-slate-700 uppercase">{userUsn}</span>
                                                                     </div>
-                                                                    
+
                                                                     <div className="w-8 h-8 rounded-xl bg-slate-50 group-hover:bg-blue-600 group-hover:text-white text-slate-400 flex items-center justify-center transition-all">
                                                                         <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
                                                                     </div>
@@ -2145,12 +2453,11 @@ const AdminDashboard = () => {
 
                             {/* Header / Category */}
                             <div className="mb-6 sm:mb-8">
-                                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${
-                                    selectedFeedback.category === 'Exams' ? 'bg-sky-50 text-sky-600 border border-sky-100' :
-                                    selectedFeedback.category === 'Website' ? 'bg-violet-50 text-violet-600 border border-violet-100' :
-                                    selectedFeedback.category === 'Apex Club' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                    'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                }`}>
+                                <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full ${selectedFeedback.category === 'Exams' ? 'bg-sky-50 text-sky-600 border border-sky-100' :
+                                        selectedFeedback.category === 'Website' ? 'bg-violet-50 text-violet-600 border border-violet-100' :
+                                            selectedFeedback.category === 'Apex Club' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                                'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                    }`}>
                                     {selectedFeedback.category === 'Exams' && '📝 '}
                                     {selectedFeedback.category === 'Website' && '🌐 '}
                                     {selectedFeedback.category === 'Apex Club' && '⚡ '}
@@ -2169,9 +2476,8 @@ const AdminDashboard = () => {
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-1.5">
                                         <h3 className="font-black text-slate-800 text-base sm:text-lg leading-tight truncate">{selectedFeedback.name}</h3>
-                                        <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded shrink-0 ${
-                                            selectedFeedback.userId ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
-                                        }`}>
+                                        <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded shrink-0 ${selectedFeedback.userId ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                                            }`}>
                                             {selectedFeedback.userId ? 'Student' : 'Guest'}
                                         </span>
                                     </div>
@@ -2954,29 +3260,53 @@ const AdminDashboard = () => {
 
                             <div className="p-6 overflow-y-auto">
                                 <div className="aspect-video bg-slate-900 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden group">
-                                    <img
-                                        id="live-stream-img"
-                                        data-userid={selectedSession.userId?._id || selectedSession.userId}
-                                        src={selectedSession.liveSnapshot || ''}
-                                        alt="Live Feed"
-                                        className="w-full h-full object-cover"
-                                        style={{ display: selectedSession.liveSnapshot ? 'block' : 'none' }}
-                                        onError={(e) => {
-                                            e.target.style.display = 'none';
-                                            const ph = document.getElementById('live-stream-placeholder');
-                                            if (ph) ph.style.display = 'flex';
-                                        }}
-                                    />
-                                    <div id="live-stream-placeholder" className="flex flex-col items-center justify-center absolute inset-0 bg-slate-900" style={{ display: selectedSession.liveSnapshot ? 'none' : 'flex' }}>
-                                        <Monitor size={48} className="text-slate-700 mb-4" />
-                                        <p className="text-slate-500 font-bold text-xs uppercase tracking-widest animate-pulse">
-                                            Establishing Secure Uplink...
-                                        </p>
-                                    </div>
-                                    <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-rose-600 text-white rounded-full text-[10px] font-black uppercase tracking-tighter animate-pulse z-10">
-                                        <div className="w-2 h-2 bg-white rounded-full" />
-                                        LIVE
-                                    </div>
+                                    {(() => {
+                                        const studentId = selectedSession.userId?._id || selectedSession.userId;
+                                        const activeBackend = selectedSession.streamingBackend || getStreamingBackend(studentId);
+                                        return (
+                                            <>
+                                                {/* WebRTC / LiveKit Video element */}
+                                                {(activeBackend === 'webrtc' || activeBackend === 'livekit') && (
+                                                    <video
+                                                        id="webrtc-admin-video"
+                                                        autoPlay
+                                                        playsInline
+                                                        className="w-full h-full object-cover z-20 absolute inset-0"
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                )}
+
+                                                {/* Jitsi meet element */}
+                                                {activeBackend === 'jitsi' && (
+                                                    <div id="jitsi-admin-container" className="w-full h-full absolute inset-0 z-20" />
+                                                )}
+
+                                                <img
+                                                    id="live-stream-img"
+                                                    data-userid={studentId}
+                                                    src={selectedSession.liveSnapshot || ''}
+                                                    alt="Live Feed"
+                                                    className="w-full h-full object-cover"
+                                                    style={{ display: selectedSession.liveSnapshot ? 'block' : 'none' }}
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        const ph = document.getElementById('live-stream-placeholder');
+                                                        if (ph) ph.style.display = 'flex';
+                                                    }}
+                                                />
+                                                <div id="live-stream-placeholder" className="flex flex-col items-center justify-center absolute inset-0 bg-slate-900" style={{ display: selectedSession.liveSnapshot ? 'none' : 'flex' }}>
+                                                    <Monitor size={48} className="text-slate-700 mb-4" />
+                                                    <p className="text-slate-500 font-bold text-xs uppercase tracking-widest animate-pulse">
+                                                        Establishing Secure Uplink ({activeBackend.toUpperCase()})...
+                                                    </p>
+                                                </div>
+                                                <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-rose-600 text-white rounded-full text-[10px] font-black uppercase tracking-tighter animate-pulse z-30">
+                                                    <div className="w-2 h-2 bg-white rounded-full" />
+                                                    LIVE - {activeBackend.toUpperCase()}
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-2 gap-4">
@@ -3130,7 +3460,7 @@ const AdminDashboard = () => {
                                     <div className="p-2 bg-amber-200 text-amber-700 rounded-lg h-fit"><Info size={16} /></div>
                                     <div>
                                         <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Spreadsheet Requirements</p>
-                                        <p className="text-xs font-bold text-amber-700/80 leading-relaxed">Ensure your file contains the following headers: <b>name, email, usn, department, mobileNumber</b>. Default passwords will follow the pattern: <b>NameUsnLast5@apex</b> (e.g., Gopalcd043@apex).</p>
+                                        <p className="text-xs font-bold text-amber-700/80 leading-relaxed">Ensure your file contains the following headers: <b>name, email, usn, department, mobileNumber</b>. Default passwords will follow the pattern: <b>Name(5 letters)MobileLast4@apex</b> (e.g., Gopal9937@apex).</p>
                                     </div>
                                 </div>
                                 <button
@@ -3167,78 +3497,78 @@ const AdminDashboard = () => {
                             <form onSubmit={handleAddNotice} className="flex flex-col flex-1 overflow-hidden">
                                 <div className="flex-1 overflow-y-auto">
                                     <div className="divide-y divide-slate-100">
-                                    <div className="flex items-center px-6 py-4 gap-4">
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">To:</span>
-                                        <select value={newNotice.targetDepartment} onChange={e => setNewNotice({ ...newNotice, targetDepartment: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none">
-                                            <option value="All">All Protocol Members (Universal)</option>
-                                            <option value="CSD">CSD Dept</option>
-                                            <option value="CSE">CSE Dept</option>
-                                            <option value="AIML">AIML Dept</option>
-                                            <option value="AIDS">AIDS Dept</option>
-                                            <option value="CEE">CEE Dept</option>
-                                            <option value="BMRE">BMRE Dept</option>
-                                        </select>
+                                        <div className="flex items-center px-6 py-4 gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">To:</span>
+                                            <select value={newNotice.targetDepartment} onChange={e => setNewNotice({ ...newNotice, targetDepartment: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none">
+                                                <option value="All">All Protocol Members (Universal)</option>
+                                                <option value="CSD">CSD Dept</option>
+                                                <option value="CSE">CSE Dept</option>
+                                                <option value="AIML">AIML Dept</option>
+                                                <option value="AIDS">AIDS Dept</option>
+                                                <option value="CEE">CEE Dept</option>
+                                                <option value="BMRE">BMRE Dept</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center px-6 py-4 gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Priority:</span>
+                                            <select value={newNotice.type} onChange={e => setNewNotice({ ...newNotice, type: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none">
+                                                <option value="general">General Broadcast</option>
+                                                <option value="urgent">Urgent Security Alert</option>
+                                                <option value="exam">Academic/Exam Update</option>
+                                                <option value="holiday">Holiday Notice</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex items-center px-6 py-4 gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Title:</span>
+                                            <input required type="text" value={newNotice.title} onChange={e => setNewNotice({ ...newNotice, title: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none" placeholder="Notice Heading" />
+                                        </div>
+
+                                        <div className="flex items-center px-6 py-4 gap-4">
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Subject:</span>
+                                            <input required type="text" value={newNotice.subject} onChange={e => setNewNotice({ ...newNotice, subject: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none" placeholder="Email Subject Line" />
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center px-6 py-4 gap-4">
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Priority:</span>
-                                        <select value={newNotice.type} onChange={e => setNewNotice({ ...newNotice, type: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none">
-                                            <option value="general">General Broadcast</option>
-                                            <option value="urgent">Urgent Security Alert</option>
-                                            <option value="exam">Academic/Exam Update</option>
-                                            <option value="holiday">Holiday Notice</option>
-                                        </select>
-                                    </div>
+                                    <div className="p-6">
+                                        <textarea
+                                            required
+                                            value={newNotice.content}
+                                            onChange={e => setNewNotice({ ...newNotice, content: e.target.value })}
+                                            className="w-full h-48 bg-transparent text-slate-600 font-medium outline-none resize-none"
+                                            placeholder="Compose your message here..."
+                                        />
 
-                                    <div className="flex items-center px-6 py-4 gap-4">
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Title:</span>
-                                        <input required type="text" value={newNotice.title} onChange={e => setNewNotice({ ...newNotice, title: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none" placeholder="Notice Heading" />
-                                    </div>
-
-                                    <div className="flex items-center px-6 py-4 gap-4">
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest w-16">Subject:</span>
-                                        <input required type="text" value={newNotice.subject} onChange={e => setNewNotice({ ...newNotice, subject: e.target.value })} className="flex-1 bg-transparent font-bold text-slate-700 outline-none" placeholder="Email Subject Line" />
-                                    </div>
-                                </div>
-
-                                <div className="p-6">
-                                    <textarea
-                                        required
-                                        value={newNotice.content}
-                                        onChange={e => setNewNotice({ ...newNotice, content: e.target.value })}
-                                        className="w-full h-48 bg-transparent text-slate-600 font-medium outline-none resize-none"
-                                        placeholder="Compose your message here..."
-                                    />
-
-                                    {noticeImagePreview && (
-                                        <div className="mt-6 border-t border-slate-100 pt-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                                                <div className="space-y-4">
-                                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Visual Scale: {newNotice.imageScale || 100}%</label>
-                                                    <input
-                                                        type="range"
-                                                        min="10"
-                                                        max="100"
-                                                        value={newNotice.imageScale || 100}
-                                                        onChange={(e) => setNewNotice({ ...newNotice, imageScale: parseInt(e.target.value) })}
-                                                        className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none"
-                                                    />
-                                                    <p className="text-[10px] text-slate-500 font-bold">Slide to adjust the image size displayed to students.</p>
-                                                </div>
-                                                <div className="relative group mx-auto flex justify-center" style={{ width: `${newNotice.imageScale || 100}%` }}>
-                                                    <img src={noticeImagePreview} alt="Preview" className="w-full h-auto rounded-xl border-2 border-slate-100" />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => { setNoticeImageFile(null); setNoticeImagePreview(null); setNewNotice({ ...newNotice, imageScale: 100 }); }}
-                                                        className="absolute -top-3 -right-3 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg"
-                                                    >
-                                                        <X size={16} />
-                                                    </button>
+                                        {noticeImagePreview && (
+                                            <div className="mt-6 border-t border-slate-100 pt-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                                                    <div className="space-y-4">
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest">Visual Scale: {newNotice.imageScale || 100}%</label>
+                                                        <input
+                                                            type="range"
+                                                            min="10"
+                                                            max="100"
+                                                            value={newNotice.imageScale || 100}
+                                                            onChange={(e) => setNewNotice({ ...newNotice, imageScale: parseInt(e.target.value) })}
+                                                            className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none"
+                                                        />
+                                                        <p className="text-[10px] text-slate-500 font-bold">Slide to adjust the image size displayed to students.</p>
+                                                    </div>
+                                                    <div className="relative group mx-auto flex justify-center" style={{ width: `${newNotice.imageScale || 100}%` }}>
+                                                        <img src={noticeImagePreview} alt="Preview" className="w-full h-auto rounded-xl border-2 border-slate-100" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setNoticeImageFile(null); setNoticeImagePreview(null); setNewNotice({ ...newNotice, imageScale: 100 }); }}
+                                                            className="absolute -top-3 -right-3 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="px-6 py-4 bg-slate-50 flex items-center justify-between shrink-0 border-t border-slate-100">

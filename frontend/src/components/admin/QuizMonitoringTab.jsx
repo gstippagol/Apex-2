@@ -162,7 +162,7 @@ const QuizMonitoringTab = () => {
             theme: 'grid',
             headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontSize: 9, fontStyle: 'bold', lineWidth: 0.1, lineColor: [0, 0, 0] },
             bodyStyles: { fontSize: 8, textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0] },
-            margin: { left: 15, right: 15 }
+            margin: { top: 30, bottom: 40, left: 15, right: 15 }
         });
 
         // Add Summary Page

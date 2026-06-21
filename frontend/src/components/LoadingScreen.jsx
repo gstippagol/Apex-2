@@ -1,14 +1,13 @@
 import React from 'react';
 import logo from '../assets/logo_transparent.png';
 
-const LoadingScreen = ({ message = "Synchronizing...", fullScreen = true, dark = true }) => {
+const LoadingScreen = ({ fullScreen = true, dark = true }) => {
     // Determine the container layout based on fullScreen and theme options
     const containerStyle = fullScreen
         ? {
             position: 'fixed',
             inset: 0,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             background: dark ? '#0f0f1a' : '#f8fafc', // dark theme or light slate theme
@@ -25,56 +24,54 @@ const LoadingScreen = ({ message = "Synchronizing...", fullScreen = true, dark =
             fontFamily: 'Inter, system-ui, sans-serif',
           };
 
-    const textStyle = {
-        marginTop: '20px',
-        fontSize: fullScreen ? '18px' : '14px',
-        fontWeight: '900',
-        color: dark ? '#60a5fa' : '#2563eb', // blue theme
-        letterSpacing: '0.05em',
-        textTransform: 'uppercase',
-        animation: 'pulse 1.5s infinite ease-in-out',
-    };
-
     return (
         <div style={containerStyle}>
-            {/* Keyframe animations injected dynamically if they don't exist */}
-            <style>{`
-                @keyframes spin-loader {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                @keyframes pulse {
-                    0%, 100% { opacity: 0.6; }
-                    50% { opacity: 1; }
-                }
-            `}</style>
-
-            <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* Buffering ring */}
+            {/* Buffering animation around the logo */}
+            <div style={{ position: 'relative', width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <style>
+                    {`
+                        @keyframes spin-pulse {
+                            0% { transform: rotate(0deg) scale(1); opacity: 0.8; }
+                            50% { transform: rotate(180deg) scale(1.1); opacity: 0.4; }
+                            100% { transform: rotate(360deg) scale(1); opacity: 0.8; }
+                        }
+                        @keyframes pulse-glow {
+                            0% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+                            50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
+                            100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+                        }
+                    `}
+                </style>
+                {/* Outer rotating/pulsing ring */}
                 <div style={{
                     position: 'absolute',
-                    width: '100%',
-                    height: '100%',
+                    inset: 0,
                     borderRadius: '50%',
-                    border: `4px solid ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(37,99,235,0.08)'}`,
-                    borderTop: `4px solid ${dark ? '#3b82f6' : '#2563eb'}`, // Blue spinner
-                    borderRight: `4px solid ${dark ? '#60a5fa' : '#60a5fa'}`, // Lighter blue accent
-                    animation: 'spin-loader 1s linear infinite',
+                    border: '3px solid transparent',
+                    borderTopColor: '#3b82f6', // blue-500
+                    borderRightColor: '#60a5fa', // blue-400
+                    animation: 'spin-pulse 1.5s linear infinite',
                 }} />
-                
-                {/* Small Logo Centered */}
+                {/* Inner static glow ring */}
+                <div style={{
+                    position: 'absolute',
+                    inset: '4px',
+                    borderRadius: '50%',
+                    border: '2px solid rgba(59, 130, 246, 0.2)',
+                    animation: 'pulse-glow 2s ease-in-out infinite',
+                }} />
+                {/* The Logo */}
                 <img 
                     src={logo} 
                     alt="APEX Logo" 
-                    style={{ 
-                        width: '44px', 
-                        height: '44px', 
+                    style={{
+                        width: '60px',
+                        height: '60px',
                         objectFit: 'contain',
-                        opacity: 0.95
-                    }} 
+                        zIndex: 10
+                    }}
                 />
             </div>
-            {message && <div style={textStyle}>{message}</div>}
         </div>
     );
 };
