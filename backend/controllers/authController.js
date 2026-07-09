@@ -60,14 +60,16 @@ exports.sendOTP = async (req, res) => {
         }
 
         // Send Email
+        const port = process.env.EMAIL_PORT || 587;
         const transporter = nodemailer.createTransport({
             host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-            port: process.env.EMAIL_PORT || 587,
-            secure: false, // true for 465, false for other ports
+            port: port,
+            secure: port == 465, // true for 465, false for other ports
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
-            }
+            },
+            connectionTimeout: 10000 // 10 seconds timeout to prevent infinite buffering
         });
 
         const mailOptions = {
@@ -187,14 +189,16 @@ exports.forgotPassword = async (req, res) => {
         );
 
         // Send Email
+        const port = process.env.EMAIL_PORT || 587;
         const transporter = nodemailer.createTransport({
             host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-            port: process.env.EMAIL_PORT || 587,
-            secure: false,
+            port: port,
+            secure: port == 465,
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS
-            }
+            },
+            connectionTimeout: 10000 // 10 seconds timeout
         });
 
         const mailOptions = {
@@ -383,14 +387,16 @@ exports.register = async (req, res) => {
         // Onboarding Email (Only for Manual Registration by Admin/SuperAdmin if email service is active)
         if ((requesterRole === 'admin' || requesterRole === 'superadmin') && (!settings || settings.isEmailEnabled !== false)) {
             try {
+                const port = process.env.EMAIL_PORT || 587;
                 const transporter = nodemailer.createTransport({
                     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-                    port: process.env.EMAIL_PORT || 587,
-                    secure: false,
+                    port: port,
+                    secure: port == 465,
                     auth: {
                         user: process.env.EMAIL_USER,
                         pass: process.env.EMAIL_PASS
-                    }
+                    },
+                    connectionTimeout: 10000 // 10 seconds timeout
                 });
 
                 const mailOptions = {

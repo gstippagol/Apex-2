@@ -16,6 +16,7 @@ const sendEmail = async (options) => {
       user: process.env.EMAIL_USER || process.env.SMTP_EMAIL,
       pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,
     },
+    connectionTimeout: 10000 // 10 seconds timeout to prevent infinite buffering
   });
 
   const fromName = process.env.FROM_NAME || "APEX Club";
