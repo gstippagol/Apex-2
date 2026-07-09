@@ -39,7 +39,7 @@ exports.updateEventStatus = async (req, res) => {
         const event = await Event.findByIdAndUpdate(
             req.params.id,
             { status },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
         if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
         await invalidate('events:all');
@@ -59,7 +59,7 @@ exports.updateEvent = async (req, res) => {
         const event = await Event.findByIdAndUpdate(
             req.params.id,
             req.body,
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
         if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
         await invalidate('events:all');

@@ -36,7 +36,7 @@ exports.updateQuestion = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Question not found' });
         }
         question = await Question.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true
         });
         res.status(200).json({ success: true, data: question });

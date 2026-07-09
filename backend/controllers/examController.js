@@ -73,7 +73,7 @@ exports.updateExam = async (req, res) => {
         }
 
         exam = await Exam.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true
         });
         await invalidate('exams:*');
@@ -93,7 +93,7 @@ exports.publishExam = async (req, res) => {
         const updateData = { status: 'Published' };
         if (targetDepartments) updateData.targetDepartments = targetDepartments;
         
-        const exam = await Exam.findByIdAndUpdate(req.params.id, updateData, { new: true });
+        const exam = await Exam.findByIdAndUpdate(req.params.id, updateData, { returnDocument: 'after' });
         await invalidate('exams:*');
 
         const io = req.app.get('io');
@@ -107,7 +107,7 @@ exports.publishExam = async (req, res) => {
 
 exports.stopExam = async (req, res) => {
     try {
-        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Stopped' }, { new: true });
+        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Stopped' }, { returnDocument: 'after' });
         // In a real app, you'd trigger a socket event to auto-submit all student exams here
         await invalidate('exams:*');
 
@@ -122,7 +122,7 @@ exports.stopExam = async (req, res) => {
 
 exports.restartExam = async (req, res) => {
     try {
-        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Ongoing' }, { new: true });
+        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Ongoing' }, { returnDocument: 'after' });
         await invalidate('exams:*');
 
         const io = req.app.get('io');
@@ -166,7 +166,7 @@ exports.deleteExam = async (req, res) => {
 
 exports.withdrawExam = async (req, res) => {
     try {
-        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Withdrawn' }, { new: true });
+        const exam = await Exam.findByIdAndUpdate(req.params.id, { status: 'Withdrawn' }, { returnDocument: 'after' });
         
         // Delete all student results associated with this exam when withdrawn
         await Result.deleteMany({ examId: req.params.id });

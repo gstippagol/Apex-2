@@ -47,7 +47,7 @@ exports.sendOTP = async (req, res) => {
         await OTP.findOneAndUpdate(
             { email },
             { otp, createdAt: new Date() },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         // Check for Email Configuration
@@ -183,7 +183,7 @@ exports.forgotPassword = async (req, res) => {
         await OTP.findOneAndUpdate(
             { email },
             { otp, createdAt: new Date() },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         // Send Email
@@ -631,7 +631,7 @@ exports.toggleUserStatus = async (req, res) => {
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
             { isActive: !user.isActive },
-            { new: true, runValidators: false }
+            { returnDocument: 'after', runValidators: false }
         );
 
         // Emit Socket Update

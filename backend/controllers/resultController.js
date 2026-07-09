@@ -290,7 +290,7 @@ exports.toggleAttendance = async (req, res) => {
         const updatedResult = await Result.findByIdAndUpdate(
             req.params.id,
             { attendance: result.attendance === 'Present' ? 'Absent' : 'Present' },
-            { new: true, runValidators: false }
+            { returnDocument: 'after', runValidators: false }
         );
 
         const io = req.app.get('io');
@@ -310,7 +310,7 @@ exports.toggleIndividualPublish = async (req, res) => {
         const updatedResult = await Result.findByIdAndUpdate(
             req.params.id,
             { isPublished: !result.isPublished },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         const io = req.app.get('io');
@@ -476,7 +476,7 @@ exports.suspendResult = async (req, res) => {
         const result = await Result.findByIdAndUpdate(id, {
             status: 'Suspended',
             suspensionReason: reason || 'Protocol violation detected'
-        }, { new: true });
+        }, { returnDocument: 'after' });
         
         if (!result) return res.status(404).json({ success: false, message: 'Result not found' });
 

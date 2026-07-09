@@ -60,7 +60,7 @@ exports.getQuiz = async (req, res) => {
 
 exports.updateQuiz = async (req, res) => {
     try {
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
         const io = req.app.get('io');
         if (io) io.emit('data-updated', { type: 'quiz', action: 'update' });
         res.status(200).json({ success: true, data: quiz });
@@ -271,7 +271,7 @@ exports.publishQuiz = async (req, res) => {
         const quiz = await Quiz.findByIdAndUpdate(req.params.id, { 
             status: 'Published',
             targetDepartments: targetDepartments || ['All']
-        }, { new: true });
+        }, { returnDocument: 'after' });
         res.status(200).json({ success: true, data: quiz });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -280,7 +280,7 @@ exports.publishQuiz = async (req, res) => {
 
 exports.stopQuiz = async (req, res) => {
     try {
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Stopped' }, { new: true });
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Stopped' }, { returnDocument: 'after' });
         res.status(200).json({ success: true, data: quiz });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
@@ -289,7 +289,7 @@ exports.stopQuiz = async (req, res) => {
 
 exports.withdrawQuiz = async (req, res) => {
     try {
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Withdrawn' }, { new: true });
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Withdrawn' }, { returnDocument: 'after' });
         
         // Delete all student results associated with this quiz when withdrawn
         await QuizResult.deleteMany({ quizId: req.params.id });
@@ -302,7 +302,7 @@ exports.withdrawQuiz = async (req, res) => {
 
 exports.restartQuiz = async (req, res) => {
     try {
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Published' }, { new: true });
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, { status: 'Published' }, { returnDocument: 'after' });
         res.status(200).json({ success: true, message: 'Quiz protocol reactivated', data: quiz });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
