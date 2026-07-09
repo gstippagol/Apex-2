@@ -12,6 +12,7 @@ const sendEmail = async (options) => {
     host: process.env.EMAIL_HOST || process.env.SMTP_HOST,
     port: process.env.EMAIL_PORT || process.env.SMTP_PORT,
     secure: (process.env.EMAIL_PORT || process.env.SMTP_PORT) == 465,
+    family: 4, // Force IPv4
     auth: {
       user: process.env.EMAIL_USER || process.env.SMTP_EMAIL,
       pass: process.env.EMAIL_PASS || process.env.SMTP_PASSWORD,
