@@ -24,6 +24,9 @@ dotenv.config();
 
 const app = express();
 
+// Trust Render's reverse proxy to ensure req.ip is correctly populated (fixes express-rate-limit IPv6 issues)
+app.set('trust proxy', 1);
+
 // --- Security & Performance Middleware ---
 
 // Set security headers
@@ -80,7 +83,7 @@ const generalLimiter = rateLimit({
     keyGenerator: (req) => {
         if (req.headers.authorization) return req.headers.authorization;
         if (req.cookies && req.cookies.token) return req.cookies.token;
-        return req.ip;
+        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
     },
     message: { success: false, message: 'Too many requests, please try again in a minute.' },
     standardHeaders: true,
@@ -92,7 +95,7 @@ const authLimiter = rateLimit({
     max: 100, // 100 login attempts per student email
     keyGenerator: (req) => {
         if (req.body && req.body.email) return req.body.email.toLowerCase();
-        return req.ip;
+        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
     },
     message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' }
 });
@@ -617,6 +620,19 @@ const gracefulShutdown = (signal) => {
 
 const startApp = async () => {
     try {
+        // Environment Variable Validation
+        const requiredEnvs = ['EMAIL_USER', 'EMAIL_PASS', 'MONGODB_URI', 'JWT_SECRET', 'FRONTEND_URL'];
+        const missingEnvs = requiredEnvs.filter(env => !process.env[env]);
+        
+        if (missingEnvs.length > 0) {
+            logger.error(`CRITICAL STARTUP ERROR: Missing required environment variables: ${missingEnvs.join(', ')}`);
+            console.error('\n======================================================');
+            console.error('💥 MISSING ENVIRONMENT VARIABLES 💥');
+            console.error(`Please set the following variables in your Render Dashboard:`);
+            missingEnvs.forEach(env => console.error(` - ${env}`));
+            console.error('======================================================\n');
+        }
+
         await connectDB();
         
         // Auto-delete feedback after 7 days
