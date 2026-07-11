@@ -33,6 +33,7 @@
     "nodemailer": "^8.0.7",
     "qrcode": "^1.5.4",
     "redis": "^5.12.1",
+    "resend": "^6.17.2",
     "socket.io": "^4.8.3",
     "uuid": "^14.0.0",
     "winston": "^3.19.0",
