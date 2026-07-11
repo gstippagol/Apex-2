@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { defaultKeyGenerator } = require('express-rate-limit'); // Using defaultKeyGenerator instead of ipKeyGenerator as it's the correct export for newer versions
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const mongoSanitize = require('express-mongo-sanitize');
@@ -80,10 +81,10 @@ if (process.env.NODE_ENV === 'development') {
 const generalLimiter = rateLimit({
     windowMs: 1 * 60 * 1000,
     max: 500, // 500 requests per student
-    keyGenerator: (req) => {
+    keyGenerator: (req, res) => {
         if (req.headers.authorization) return req.headers.authorization;
         if (req.cookies && req.cookies.token) return req.cookies.token;
-        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        return defaultKeyGenerator(req, res); // Uses the library's safe IP resolver
     },
     message: { success: false, message: 'Too many requests, please try again in a minute.' },
     standardHeaders: true,
@@ -93,9 +94,9 @@ const generalLimiter = rateLimit({
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100, // 100 login attempts per student email
-    keyGenerator: (req) => {
+    keyGenerator: (req, res) => {
         if (req.body && req.body.email) return req.body.email.toLowerCase();
-        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        return defaultKeyGenerator(req, res); // Uses the library's safe IP resolver
     },
     message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' }
 });
@@ -623,7 +624,7 @@ const startApp = async () => {
         // Environment Variable Validation
         const requiredEnvs = ['EMAIL_USER', 'EMAIL_PASS', 'MONGODB_URI', 'JWT_SECRET', 'FRONTEND_URL'];
         const missingEnvs = requiredEnvs.filter(env => !process.env[env]);
-        
+
         if (missingEnvs.length > 0) {
             logger.error(`CRITICAL STARTUP ERROR: Missing required environment variables: ${missingEnvs.join(', ')}`);
             console.error('\n======================================================');
@@ -634,7 +635,7 @@ const startApp = async () => {
         }
 
         await connectDB();
-        
+
         // Auto-delete feedback after 7 days
         const cleanupOldFeedback = async () => {
             try {
