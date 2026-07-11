@@ -7,7 +7,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const { defaultKeyGenerator } = require('express-rate-limit'); // Using defaultKeyGenerator instead of ipKeyGenerator as it's the correct export for newer versions
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const mongoSanitize = require('express-mongo-sanitize');
@@ -84,7 +83,7 @@ const generalLimiter = rateLimit({
     keyGenerator: (req, res) => {
         if (req.headers.authorization) return req.headers.authorization;
         if (req.cookies && req.cookies.token) return req.cookies.token;
-        return defaultKeyGenerator(req, res); // Uses the library's safe IP resolver
+        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
     },
     message: { success: false, message: 'Too many requests, please try again in a minute.' },
     standardHeaders: true,
@@ -96,7 +95,7 @@ const authLimiter = rateLimit({
     max: 100, // 100 login attempts per student email
     keyGenerator: (req, res) => {
         if (req.body && req.body.email) return req.body.email.toLowerCase();
-        return defaultKeyGenerator(req, res); // Uses the library's safe IP resolver
+        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
     },
     message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' }
 });
