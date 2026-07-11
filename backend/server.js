@@ -622,7 +622,7 @@ const gracefulShutdown = (signal) => {
 const startApp = async () => {
     try {
         // Environment Variable Validation
-        const requiredEnvs = ['RESEND_API_KEY', 'MONGODB_URI', 'JWT_SECRET', 'FRONTEND_URL'];
+        const requiredEnvs = ['BREVO_API_KEY', 'MONGODB_URI', 'JWT_SECRET', 'FRONTEND_URL'];
         const missingEnvs = requiredEnvs.filter(env => !process.env[env]);
 
         if (missingEnvs.length > 0) {

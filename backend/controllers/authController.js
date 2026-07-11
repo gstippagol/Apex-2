@@ -2,7 +2,7 @@ const User = require('../models/User');
 const OTP = require('../models/OTP');
 const Settings = require('../models/Settings');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const sendEmail = require('../utils/sendEmail');
 const { v4: uuidv4 } = require('uuid');
 
 // @desc    Send OTP to email
@@ -50,33 +50,8 @@ exports.sendOTP = async (req, res) => {
             { upsert: true, returnDocument: 'after' }
         );
 
-        // Check for Email Configuration
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-            console.error('CRITICAL: SMTP Credentials missing from .env configuration');
-            return res.status(500).json({ 
-                success: false, 
-                message: 'System Email Protocol not configured. Please contact administrator to set EMAIL_USER and EMAIL_PASS.' 
-            });
-        }
-
-        // Send Email
-        const port = process.env.EMAIL_PORT || 587;
-        const transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-            port: port,
-            secure: port == 465, // true for 465, false for other ports
-            family: 4, // Force IPv4
-            autoSelectFamily: false,
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            },
-            connectionTimeout: 10000 // 10 seconds timeout to prevent infinite buffering
-        });
-
-        const mailOptions = {
-            from: `"APEX Platform" <${process.env.EMAIL_USER}>`,
-            to: email,
+        await sendEmail({
+            email,
             subject: 'APEX Registry - Identity Verification Code',
             html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
@@ -89,9 +64,7 @@ exports.sendOTP = async (req, res) => {
                     <p style="color: #64748b; font-size: 12px; text-align: center;">This code will expire in 5 minutes. If you did not request this, please ignore this email.</p>
                 </div>
             `
-        };
-
-        await transporter.sendMail(mailOptions);
+        });
 
         res.status(200).json({ success: true, message: 'Verification code dispatched to email' });
     } catch (err) {
@@ -190,24 +163,8 @@ exports.forgotPassword = async (req, res) => {
             { upsert: true, returnDocument: 'after' }
         );
 
-        // Send Email
-        const port = process.env.EMAIL_PORT || 587;
-        const transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-            port: port,
-            secure: port == 465,
-            family: 4, // Force IPv4
-            autoSelectFamily: false, // Prevent failover to IPv6
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            },
-            connectionTimeout: 10000 // 10 seconds timeout
-        });
-
-        const mailOptions = {
-            from: `"APEX Platform" <${process.env.EMAIL_USER}>`,
-            to: email,
+        await sendEmail({
+            email,
             subject: 'APEX Registry - Password Recovery Protocol',
             html: `
                 <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
@@ -220,9 +177,7 @@ exports.forgotPassword = async (req, res) => {
                     <p style="color: #64748b; font-size: 12px; text-align: center;">This code will expire in 5 minutes. If you did not request this, please secure your account immediately.</p>
                 </div>
             `
-        };
-
-        await transporter.sendMail(mailOptions);
+        });
 
         res.status(200).json({ success: true, message: 'Recovery code dispatched to email' });
     } catch (err) {
@@ -391,23 +346,8 @@ exports.register = async (req, res) => {
         // Onboarding Email (Only for Manual Registration by Admin/SuperAdmin if email service is active)
         if ((requesterRole === 'admin' || requesterRole === 'superadmin') && (!settings || settings.isEmailEnabled !== false)) {
             try {
-                const port = process.env.EMAIL_PORT || 587;
-                const transporter = nodemailer.createTransport({
-                    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-                    port: port,
-                    secure: port == 465,
-                    family: 4, // Force IPv4
-                    autoSelectFamily: false,
-                    auth: {
-                        user: process.env.EMAIL_USER,
-                        pass: process.env.EMAIL_PASS
-                    },
-                    connectionTimeout: 10000 // 10 seconds timeout
-                });
-
-                const mailOptions = {
-                    from: `"APEX Platform" <${process.env.EMAIL_USER}>`,
-                    to: email,
+                await sendEmail({
+                    email,
                     subject: 'APEX Registry - Identity Provisioning Successful',
                     html: `
                         <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 20px;">
@@ -443,9 +383,7 @@ exports.register = async (req, res) => {
                             </p>
                         </div>
                     `
-                };
-
-                await transporter.sendMail(mailOptions);
+                });
             } catch (mailErr) {
                 console.error('Onboarding dispatch failed:', mailErr);
             }

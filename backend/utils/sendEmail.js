@@ -1,5 +1,3 @@
-const { Resend } = require('resend');
-
 const sendEmail = async (options) => {
   const Settings = require('../models/Settings');
   const settings = await Settings.findOne();
@@ -9,43 +7,52 @@ const sendEmail = async (options) => {
   }
 
   // Validate environment variables
-  if (!process.env.RESEND_API_KEY) {
-    console.error('ERROR: RESEND_API_KEY environment variable is missing.');
-    return { success: false, error: 'RESEND_API_KEY missing' };
+  if (!process.env.BREVO_API_KEY) {
+    console.error('ERROR: BREVO_API_KEY environment variable is missing.');
+    return { success: false, error: 'BREVO_API_KEY missing' };
   }
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
   const fromName = process.env.FROM_NAME || "APEX Club";
-  
-  // Note: For Resend, you generally need a verified domain. 
-  // If you don't have one, you can use onboarding@resend.dev but it only sends to the email you registered with.
-  const fromEmail = process.env.FROM_EMAIL || "onboarding@resend.dev";
+  const fromEmail = process.env.FROM_EMAIL || "apex.muse2026@gmail.com"; 
 
-  const message = {
-    from: `${fromName} <${fromEmail}>`,
-    to: options.email || options.to,
-    bcc: options.bcc, 
+  const payload = {
+    sender: { name: fromName, email: fromEmail },
+    to: [{ email: options.email || options.to }],
     subject: options.subject,
-    html: options.html, // Resend prefers HTML
-    text: options.message,
+    htmlContent: options.html,
+    textContent: options.message
   };
+
+  if (options.bcc) {
+      payload.bcc = [{ email: options.bcc }];
+  }
 
   // Retry handling
   const maxRetries = 3;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const { data, error } = await resend.emails.send(message);
-      
-      if (error) {
-        throw new Error(error.message);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'api-key': process.env.BREVO_API_KEY
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(JSON.stringify(errorData));
       }
       
-      console.log('Message sent successfully via Resend on attempt %d: %s', attempt, data.id);
+      const data = await response.json();
+      console.log('Message sent successfully via Brevo on attempt %d: %s', attempt, data.messageId);
       return data;
     } catch (error) {
-      console.error(`Attempt ${attempt} failed to send email via Resend:`, error.message);
+      console.error(`Attempt ${attempt} failed to send email via Brevo:`, error.message);
       if (attempt === maxRetries) {
-        console.error('All retry attempts failed. Could not send email via Resend.');
+        console.error('All retry attempts failed. Could not send email via Brevo.');
         throw error;
       }
       // Delay before retrying
